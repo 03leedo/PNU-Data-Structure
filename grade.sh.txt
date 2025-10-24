@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -ne 3 ]; then
+  echo "사용법: $0 <실행파일> <입력파일> <정답파일>"
+  exit 1
+fi
+
+exe=$1
+infile=$2
+outfile=$3
+
+# 실행파일이 있는 디렉토리 + 이름
+exe_dir=$(dirname "$exe")
+exe_base=$(basename "$exe")
+src="$exe_dir/${exe_base%.*}.cpp"  # 실행파일과 같은 폴더의 동일이름 .cpp
+
+# 코드 통계
+if [ -f "$src" ]; then
+  code_words=$(wc -w < "$src")
+  code_lines=$(wc -l < "$src")
+else
+  code_words="(소스 없음)"
+  code_lines="(소스 없음)"
+fi
+
+tmp=$(mktemp)
+
+# 실행 + 시간 측정
+start=$(date +%s%N)
+"$exe" < "$infile" > "$tmp" 2>stderr.log || {
+  echo "[RE] 런타임 에러"
+  echo "stderr:"
+  head -n 5 stderr.log | sed 's/^/    /'
+  rm -f "$tmp"
+  exit 1
+}
+end=$(date +%s%N)
+elapsed_ms=$(((end - start) / 1000000))
+
+# 정답 비교
+if diff -q "$tmp" "$outfile" >/dev/null; then
+  echo "[AC] 정답입니다!"
+else
+  echo "[WA] 오답입니다. 차이점:"
+  diff -u "$outfile" "$tmp" | sed 's/^/    /'
+fi
+
+echo "실행 시간: ${elapsed_ms}ms"
+echo "코드 단어 수: ${code_words}"
+echo "코드 줄 수: ${code_lines}"
+
+rm -f "$tmp"
